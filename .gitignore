@@ -1,0 +1,11 @@
+.vs
+.idea
+build
+output
+ninjabuild
+.cache
+**/node_modules/**
+package-lock.json
+*.obj
+*.gch
+*.pch
