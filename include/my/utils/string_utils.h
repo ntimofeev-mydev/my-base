@@ -1,0 +1,326 @@
+// #my_engine_source_file
+#pragma once
+
+#include "my/base/config.h"
+
+#include <ctype.h>
+
+#include <algorithm>
+#include <iterator>
+#include <string>
+#include <string_view>
+#include <type_traits>
+#include <utility>
+
+
+namespace my::kernel_detail {
+#if 0
+    template <typename T>
+    constexpr inline auto choose([[maybe_unused]] const wchar_t* wstr, [[maybe_unused]] const char* str)
+    {
+        if constexpr (std::is_same_v<T, wchar_t>)
+        {
+            return wstr;
+        }
+        else
+        {
+            return str;
+        }
+    }
+
+    template <typename T>
+    constexpr inline auto choose([[maybe_unused]] wchar_t wchr, [[maybe_unused]] char chr)
+    {
+        if constexpr (std::is_same_v<T, wchar_t>)
+        {
+            return wchr;
+        }
+        else
+        {
+            return chr;
+        }
+    }
+#endif
+    MY_BASE_EXPORT
+    std::string_view SplitNext(std::string_view str, std::string_view current, std::string_view separators);
+
+    // MY_BASE_EXPORT
+    // std::wstring_view SplitNext(std::wstring_view str, std::wstring_view current, std::wstring_view separators);
+
+    // template <typename C>
+    // auto splitImpl(std::basic_string_view<C> text, std::basic_string_view<C> separators)
+    // {
+    //     return SplitSequence<C>(text, separators);
+    // }
+
+}  // namespace my::kernel_detail
+
+namespace my::strings {
+
+    inline constexpr const char* kEmptyStr = "";
+
+    template <typename T>
+    concept KnownStringView =
+        std::is_same_v<std::string_view, T> ||
+        std::is_same_v<std::wstring_view, T> ||
+        std::is_same_v<std::string_view, T>;
+
+    // template <KnownStringView StringView>
+    struct MY_BASE_EXPORT SplitSequence
+    {
+        using value_type = std::string_view;
+
+        class MY_BASE_EXPORT iterator
+        {
+        public:
+            using iterator_category = std::forward_iterator_tag;
+            using value_type = std::string_view;
+            using difference_type = std::size_t;
+            using pointer = std::string_view*;
+            using reference = std::string_view&;
+
+            iterator() = default;
+
+            bool operator==(const iterator& other) const;
+            // {
+            //     //if (m_current.data() == nullptr || other.m_current.data() == nullptr)
+            //     //{
+            //     //    return m_current.data() == other.m_current.empty();
+            //     //}
+
+            //     /*if (m_current.empty() || other.m_current.empty())
+            //     {
+            //         return m_current.empty() && other.m_current.empty();
+            //     }*/
+
+            //     return m_current.data() == other.m_current.data();
+            // }
+
+            bool operator!=(const iterator& other) const;
+            // {
+            //     return !this->operator==(other);
+            // }
+
+            iterator& operator++();
+            // {
+            //     if (m_current = kernel_detail::SplitNext(m_str, m_current, m_separators); m_current.data() == nullptr)
+            //     {
+            //         m_str = {};
+            //         m_separators = {};
+            //     }
+
+            //     return *this;
+            // }
+
+            iterator operator++(int);
+            value_type operator*() const;
+            const value_type* operator->() const;
+
+        private:
+            iterator(value_type str, std::string_view separators, value_type::size_type offset);
+
+            void advance();
+
+            value_type m_str;
+            value_type m_separators;
+            value_type m_value;
+            value_type::size_type m_nextOffset = value_type::npos;
+            friend struct SplitSequence;
+        };
+
+        value_type str;
+        value_type separators;
+
+        SplitSequence() = default;
+
+        SplitSequence(value_type inStr, value_type inSeparators) :
+            str(inStr),
+            separators(inSeparators)
+        {
+        }
+
+        iterator begin() const;
+        iterator end() const;
+    };
+
+    inline char ToLower(char ch)
+    {
+        const auto res = ::tolower(static_cast<unsigned char>(ch));
+        return static_cast<char>(res);
+    }
+
+    inline char ToUpper(char ch)
+    {
+        const auto res = ::toupper(static_cast<unsigned char>(ch));
+        return static_cast<char>(res);
+    }
+
+    inline bool IsUpper(char ch)
+    {
+        return ::isupper(static_cast<int>(ch)) != 0;
+    }
+
+    inline bool IsLower(char ch)
+    {
+        return ::islower(static_cast<int>(ch)) != 0;
+    }
+
+    inline wchar_t ToLower(wchar_t wch)
+    {
+        const auto res = ::towlower(static_cast<unsigned short>(wch));
+        return static_cast<wchar_t>(res);
+    }
+
+    inline wchar_t ToUpper(wchar_t wch)
+    {
+        const auto res = ::towupper(static_cast<unsigned short>(wch));
+        return static_cast<wchar_t>(res);
+    }
+
+    inline bool iIUpper(wchar_t ch)
+    {
+        return ::iswupper(ch) != 0;
+    }
+
+    inline bool IsLower(wchar_t ch)
+    {
+        return ::iswlower(ch) != 0;
+    }
+
+    // template <typename C,
+    // auto split(std::basic_string_view<C, A...> str, std::basic_string_view<C, A...> separators)
+    // {
+    //     return SplitSequence{str, separators};
+    // }
+
+    inline auto Split(std::string_view str, std::string_view separators)
+    {
+        return SplitSequence{str, separators};
+    }
+
+    MY_BASE_EXPORT
+    std::pair<std::string_view, std::string_view> Cut(std::string_view str, char separator);
+
+    MY_BASE_EXPORT
+    std::string_view TrimStart(std::string_view str);
+
+    MY_BASE_EXPORT
+    std::wstring_view TrimStart(std::wstring_view str);
+
+
+    MY_BASE_EXPORT
+    std::string_view TrimEnd(std::string_view str);
+
+    MY_BASE_EXPORT
+    std::wstring_view TrimEnd(std::wstring_view str);
+
+
+    MY_BASE_EXPORT
+    std::string_view Trim(std::string_view str);
+
+    MY_BASE_EXPORT
+    std::wstring_view Trim(std::wstring_view str);
+
+    MY_BASE_EXPORT
+    std::string_view TrimEnd(std::string_view str);
+
+    MY_BASE_EXPORT
+    std::string_view TrimStart(std::string_view str);
+
+    MY_BASE_EXPORT
+    std::string_view Trim(std::string_view str);
+
+   
+    /**
+        @brief Perform 'basic' case insensitive string comparison.
+    */
+    template <typename It1, typename It2>
+    inline bool ICaseEqual(It1 begin1, It1 end1, It2 begin2, It2 end2) noexcept
+    {
+        const auto len1 = std::distance(begin1, end1);
+        const auto len2 = std::distance(begin2, end2);
+
+        if (len1 != len2)
+        {
+            return false;
+        }
+
+        auto iter1 = begin1;
+        auto iter2 = begin2;
+
+        while (iter1 != end1)
+        {
+            const auto ch1 = *iter1;
+            const auto ch2 = *iter2;
+
+            if (ToLower(ch1) != ToLower(ch2))
+            {
+                return false;
+            }
+
+            ++iter1;
+            ++iter2;
+        }
+
+        return true;
+    }
+
+    template <typename It1, typename It2>
+    inline int ICaseCompare(It1 begin1, It1 end1, It2 begin2, It2 end2) noexcept
+    {
+        static_assert(std::is_same_v<decltype(*begin1), decltype(*begin2)>, "String type mismatch");
+
+        auto p = std::mismatch(begin1, end1, begin2, end2, [](auto c1, auto c2)
+        {
+            return ToLower(c1) == ToLower(c2);
+        });
+
+        if (p.first == end1)
+        {
+            return p.second == end2 ? 0 : -1;
+        }
+        else if (p.second == end2)
+        {
+            return 1;
+        }
+
+        const auto ch1 = ToLower(*p.first);
+        const auto ch2 = ToLower(*p.second);
+
+        //	DEBUG_CHECK(ch1 != ch2)
+
+        return ch1 < ch2 ? -1 : 1;
+    }
+
+    inline bool ICaseEqual(std::string_view str1, std::string_view str2)
+    {
+        return ICaseEqual(std::begin(str1), std::end(str1), std::begin(str2), std::end(str2));
+    }
+
+    inline bool ICaseEqual(std::wstring_view str1, std::wstring_view str2)
+    {
+        return ICaseEqual(std::begin(str1), std::end(str1), std::begin(str2), std::end(str2));
+    }
+
+    template <typename Char>
+    int ICaseCompare(std::basic_string_view<Char> str1, std::basic_string_view<Char> str2) noexcept
+    {
+        return ICaseCompare(std::begin(str1), std::end(str1), std::begin(str2), std::end(str2));
+    }
+
+    template <typename String = std::string_view>
+    struct ICaseStringComparer
+    {
+        using is_transparent = int;
+
+        template <typename Left, typename Right>
+        requires(std::is_constructible_v<String, Left> && std::is_constructible_v<String, Right>)
+        bool operator()(const Left& str1, const Right& str2) const noexcept
+        {
+            return ICaseCompare(String{str1}, String{str2}) < 0;
+        }
+    };
+}  // namespace my::strings
+
+#define TYPED_STR(T, text) my::kernel_detail::choose<T>(L##text, text)
+#define TYPED_CHR(T, chr) my::kernel_detail::choose<T>(L##chr, chr)
