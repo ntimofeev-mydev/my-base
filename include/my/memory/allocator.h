@@ -7,17 +7,14 @@
 #include "my/rtti/ptr.h"
 #include "my/rtti/rtti_object.h"
 
-// #include <concepts>
 #include <limits>
 #include <memory_resource>
 #include <type_traits>
 
-// #include "my/utils/type_utility.h"
-
 namespace my
 {
-    // struct IAllocator;
-
+    /**
+     */
     struct MY_ABSTRACT_TYPE IAllocator : IRefCounted
     {
         MY_INTERFACE(my::IAllocator, IRefCounted);
@@ -31,9 +28,9 @@ namespace my
 
         virtual void Free(void* ptr, size_t size = kUnspecifiedValue, size_t alignment = kUnspecifiedValue) = 0;
 
-        virtual size_t GetMaxAlignment() const = 0;
+        [[nodiscard]] virtual size_t GetMaxAlignment() const = 0;
 
-        virtual std::pmr::memory_resource* GetMemoryResource() = 0;
+        [[nodiscard]] virtual std::pmr::memory_resource* GetMemoryResource() = 0;
 
         virtual void SetName(const char*)
         {
@@ -45,11 +42,9 @@ namespace my
         }
     };
 
-
-
     using AllocatorPtr = Ptr<IAllocator>;
 
-    MY_BASE_EXPORT AllocatorPtr CreateDefaultGenericAllocator(bool threadSafe = true);
+    MY_BASE_EXPORT AllocatorPtr CreateGenericAllocator(bool threadSafe = true);
 
     MY_BASE_EXPORT IAllocator& GetDefaultAllocator();
 
@@ -70,15 +65,17 @@ namespace my
 namespace my::mem_detail
 {
     /**
+        Using Allocator as template parameter (instead if IAllocator) to eliminate virtual calls.
+        In general compiler can even inline all m_allocator.XXX calls.
      */
-    template <typename Allocator>
+    template <typename AllocatorT>
     class AllocatorMemoryResource final : public std::pmr::memory_resource
     {
     public:
-        AllocatorMemoryResource(Allocator& allocator) :
+        AllocatorMemoryResource(AllocatorT& allocator) :
             m_allocator{allocator}
         {
-            static_assert(std::is_base_of_v<IAllocator, Allocator>);
+            static_assert(std::is_base_of_v<IAllocator, AllocatorT>);
         }
 
         AllocatorMemoryResource(const AllocatorMemoryResource&) = delete;
@@ -89,7 +86,7 @@ namespace my::mem_detail
             MY_DBG_ASSERT(align > 0 && IsPowerOf2(align));
             MY_DBG_ASSERT(align <= m_allocator.GetMaxAlignment());
 
-            void* ptr = m_allocator.alloc(size, align);
+            void* ptr = m_allocator.Alloc(size, align);
 
             MY_FATAL(ptr == nullptr || reinterpret_cast<uintptr_t>(ptr) % align == 0);
             return ptr;
@@ -97,7 +94,7 @@ namespace my::mem_detail
 
         void do_deallocate(void* ptr, size_t size, size_t align) override
         {
-            m_allocator.free(ptr, size, align);
+            m_allocator.Free(ptr, size, align);
         }
 
         bool do_is_equal(const std::pmr::memory_resource& other) const noexcept override
@@ -106,15 +103,15 @@ namespace my::mem_detail
         }
 
     private:
-        Allocator& m_allocator;
+        AllocatorT& m_allocator;
     };
 
     template <typename T>
     class AllocatorWithMemResource : public IAllocator
     {
         MY_INTERFACE(my::mem_detail::AllocatorWithMemResource<T>, IAllocator);
+
     public:
-        
         std::pmr::memory_resource* GetMemoryResource() final
         {
             return &m_memResource;

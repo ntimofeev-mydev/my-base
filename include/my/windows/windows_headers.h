@@ -14,8 +14,9 @@
     #define NOMINMAX
 #endif
 
-#include <Windows.h>
 #include <WinSock2.h>
+#include <Windows.h>
+
 
 #ifndef __FUNCTION_NAME__
     #ifdef WIN32  // WINDOWS
@@ -23,4 +24,8 @@
     #else  //*NIX
         #define __FUNCTION_NAME__ __func__
     #endif
+#endif
+
+#ifdef GetMessage
+    #undef GetMessage
 #endif

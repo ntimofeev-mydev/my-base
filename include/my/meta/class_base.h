@@ -6,8 +6,6 @@
 #include "my/utils/type_list/distinct.h"
 #include "my/utils/type_utils.h"
 
-#include <type_traits>
-
 namespace my::meta
 {
     /**
@@ -57,6 +55,16 @@ namespace my::meta_detail
     template <typename T>
     using ClassAllUniqueBase = type_list::Distinct<typename ClassAllBase<T>::type>;
 
+#if defined(WIN32) || defined(__clang__)
+    template <typename This, typename... Bases>
+    consteval bool CheckAllBases()
+    {
+        return !__is_complete_type(This) || (__is_base_of(Bases, This) && ...);
+    }
+#else
+    #error define specific function
+#endif
+
 }  // namespace my::meta_detail
 
 namespace my::meta
@@ -72,19 +80,13 @@ namespace my::meta
 
 }  // namespace my::meta
 
-#define MY_CLASS_BASE(...)                                                                              \
-private:                                                                                                \
-    void MyValidateClassBase__()                                                                        \
-    {                                                                                                   \
-        using This = std::remove_pointer_t<decltype(this)>;                                             \
-                                                                                                        \
-        constexpr bool kAllIsBase = []<typename... BaseT__>(my::TypeList<BaseT__...>) consteval -> bool \
-        {                                                                                               \
-            return (std::is_base_of_v<BaseT__, This> && ...);                                           \
-        }(my::TypeList<__VA_ARGS__>{});                                                                 \
-                                                                                                        \
-        static_assert(kAllIsBase, "Not all specified types are actually base for type");                \
-    }                                                                                                   \
-                                                                                                        \
-public:                                                                                                 \
+#define MY_CLASS_BASE(...)                                                                                                        \
+private:                                                                                                                          \
+    void MyValidateClassBase__()                                                                                                  \
+    {                                                                                                                             \
+        using This = std::remove_pointer_t<decltype(this)>;                                                                       \
+        static_assert(my::meta_detail::CheckAllBases<This, __VA_ARGS__>(), "Not all specified types are actually base for type"); \
+    }                                                                                                                             \
+                                                                                                                                  \
+public:                                                                                                                           \
     using My_ClassBase = ::my::meta::ReflectClassBase<__VA_ARGS__>

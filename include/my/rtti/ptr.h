@@ -6,9 +6,6 @@
 #include "my/rtti/cast.h"
 #include "my/rtti/ref_counted.h"
 
-// #include "my/utils/uni_ptr.h"
-
-#include <concepts>
 #include <memory>
 
 namespace my::rtti_detail
@@ -90,21 +87,21 @@ namespace my::rtti
 
 namespace my
 {
-    template <RttiObjectBase = IRttiObject>
+    template <DerivedFromRttiObject = IRttiObject>
     class UniqueRttiPtr;
 
-    template <RttiObjectBase = IRefCounted>
+    template <DerivedFromRttiObject = IRefCounted>
     class Ptr;
 
     /**
      */
-    template <RttiObjectBase T>
+    template <DerivedFromRttiObject T>
     class UniqueRttiPtr
     {
-        template <RttiObjectBase>
+        template <DerivedFromRttiObject>
         friend class UniqueRttiPtr;
 
-        template <RttiObjectBase>
+        template <DerivedFromRttiObject>
         friend class Ptr;
 
     public:
@@ -134,7 +131,7 @@ namespace my
         {
         }
 
-        template <RttiObjectBase U>
+        template <DerivedFromRttiObject U>
         requires(!std::is_same_v<U, T>)
         UniqueRttiPtr(UniqueRttiPtr<U>&& other)
         {
@@ -144,7 +141,7 @@ namespace my
 
         UniqueRttiPtr(Ptr<T>&& other);
 
-        template <RttiObjectBase U>
+        template <DerivedFromRttiObject U>
         requires(!std::is_same_v<U, T>)
         UniqueRttiPtr(Ptr<U>&& other);
 
@@ -190,7 +187,7 @@ namespace my
             return *this;
         }
 
-        template <RttiObjectBase U>
+        template <DerivedFromRttiObject U>
         requires(!std::is_same_v<U, T>)
         UniqueRttiPtr& operator=(UniqueRttiPtr<U>&& other)
         {
@@ -201,7 +198,7 @@ namespace my
 
         UniqueRttiPtr& operator=(Ptr<T>&& other);
 
-        template <RttiObjectBase U>
+        template <DerivedFromRttiObject U>
         requires(!std::is_same_v<U, T>)
         UniqueRttiPtr& operator=(Ptr<U>&& other);
 
@@ -256,7 +253,7 @@ namespace my
             }
         }
 
-        template <RttiObjectBase U>
+        template <DerivedFromRttiObject U>
         MY_FORCE_INLINE void MoveAssignMaybeCompatible(U* newPtr)
         {
             static_assert(!std::is_same_v<U, T>);
@@ -293,13 +290,13 @@ namespace my
 
     /**
      */
-    template <RttiObjectBase T>
+    template <DerivedFromRttiObject T>
     class Ptr
     {
-        template <RttiObjectBase>
+        template <DerivedFromRttiObject>
         friend class UniqueRttiPtr;
 
-        template <RttiObjectBase>
+        template <DerivedFromRttiObject>
         friend class Ptr;
 
     public:
@@ -348,7 +345,7 @@ namespace my
         {
         }
 
-        template <RttiObjectBase U>
+        template <DerivedFromRttiObject U>
         requires(!std::is_same_v<U, T>)
         Ptr(const Ptr<U>& other)
 
@@ -357,7 +354,7 @@ namespace my
             AssignMaybeCompatible(other.Get());
         }
 
-        template <RttiObjectBase U>
+        template <DerivedFromRttiObject U>
         requires(!std::is_same_v<U, T>)
         Ptr(Ptr<U>&& other)
         {
@@ -370,7 +367,7 @@ namespace my
         {
         }
 
-        template <RttiObjectBase U>
+        template <DerivedFromRttiObject U>
         requires(!std::is_same_v<U, T>)
         Ptr(UniqueRttiPtr<U>&& other)
         {
@@ -379,17 +376,17 @@ namespace my
 
         Ptr<T>& operator=(const Ptr<T>& other)
         {
-            AssignMaybeCompatible(other.m_ptr);
+            Assign(other.m_ptr);
             return *this;
         }
 
         Ptr<T>& operator=(Ptr<T>&& other) noexcept
         {
-            MoveAssignMaybeCompatible(other.GiveUp());
+            MoveAssign(other.GiveUp());
             return *this;
         }
 
-        template <RttiObjectBase U>
+        template <DerivedFromRttiObject U>
         requires(!std::is_same_v<U, T>)
         Ptr<T>& operator=(const Ptr<U>& other)
         {
@@ -398,7 +395,7 @@ namespace my
             return *this;
         }
 
-        template <RttiObjectBase U>
+        template <DerivedFromRttiObject U>
         requires(!std::is_same_v<U, T>)
         Ptr<T>& operator=(Ptr<U>&& other)
         {
@@ -412,7 +409,7 @@ namespace my
             return *this;
         }
 
-        template <RttiObjectBase U>
+        template <DerivedFromRttiObject U>
         requires(!std::is_same_v<U, T>)
         Ptr<T>& operator=(UniqueRttiPtr<U>&& other)
         {
@@ -447,7 +444,7 @@ namespace my
             return m_ptr == other.m_ptr;
         }
 
-        template <RttiObjectBase U>
+        template <DerivedFromRttiObject U>
         requires(!std::is_same_v<T, U>)
         bool operator==(const Ptr<U>& other) const noexcept
         {
@@ -472,7 +469,7 @@ namespace my
 
         void Reset(T* ptr = nullptr)
         {
-            AssignMaybeCompatible(ptr);
+            Assign(ptr);
         }
 
     private:
@@ -507,7 +504,7 @@ namespace my
             Release current.
             Try to cast new ptr to T, add ref to new ptr
          */
-        template <RttiObjectBase U>
+        template <DerivedFromRttiObject U>
         void AssignMaybeCompatible(U* newPtr)
         {
             static_assert(!std::is_same_v<U, T>);
@@ -536,7 +533,7 @@ namespace my
             Release current.
             Try to cast new ptr to T, does nothing for new ptr
          */
-        template <RttiObjectBase U>
+        template <DerivedFromRttiObject U>
         void MoveAssignMaybeCompatible(U* newPtr)
         {
             static_assert(!std::is_same_v<U, T>);
@@ -572,29 +569,29 @@ namespace my
     template <typename T>
     Ptr(rtti::TakeOwnership<T>) -> Ptr<T>;
 
-    template <RttiObjectBase T>
+    template <DerivedFromRttiObject T>
     UniqueRttiPtr<T>::UniqueRttiPtr(Ptr<T>&& other) :
         m_ptr(other.GiveUp())
     {
     }
 
-    template <RttiObjectBase T>
-    template <RttiObjectBase U>
+    template <DerivedFromRttiObject T>
+    template <DerivedFromRttiObject U>
     requires(!std::is_same_v<U, T>)
     UniqueRttiPtr<T>::UniqueRttiPtr(Ptr<U>&& other)
     {
         MoveAssignMaybeCompatible(other.GiveUp());
     }
 
-    template <RttiObjectBase T>
+    template <DerivedFromRttiObject T>
     UniqueRttiPtr<T>& UniqueRttiPtr<T>::operator=(Ptr<T>&& other)
     {
         MoveAssign(other.GiveUp());
         return *this;
     }
 
-    template <RttiObjectBase T>
-    template <RttiObjectBase U>
+    template <DerivedFromRttiObject T>
+    template <DerivedFromRttiObject U>
     requires(!std::is_same_v<U, T>)
     UniqueRttiPtr<T>& UniqueRttiPtr<T>::operator=(Ptr<U>&& other)
     {

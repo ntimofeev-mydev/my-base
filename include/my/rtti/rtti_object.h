@@ -100,5 +100,5 @@ namespace my
     };
 
     template <typename Derived>
-    concept RttiObjectBase = std::is_base_of_v<IRttiObject, Derived>;
+    concept DerivedFromRttiObject = std::is_base_of_v<IRttiObject, Derived>;
 }  // namespace my

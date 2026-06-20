@@ -54,7 +54,7 @@ namespace my::diag_detail {
     }
 
     template <typename... Args>
-    inline std::string_view MakeFailureMessage(std::string_view message, const Args&... args)
+    inline std::string_view MakeFailureMessage(const std::string_view message, const Args&... args)
     {
         if constexpr (sizeof...(Args) == 0)
         {
