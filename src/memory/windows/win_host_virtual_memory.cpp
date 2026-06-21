@@ -1,96 +1,95 @@
 // #my_engine_source_file
-#if 0
 #include "my/diag/assert.h"
-#include "my/memory/host_memory.h"
-#include "my/threading/lock_guard.h"
-// #include "my/threading/mutex_no_lock.h"
-// #include "my/threading/spin_lock.h"
+#include "win_host_virtual_memory.h"
 
 namespace my
 {
-    class WindowsHostVirtualMemory final : public IHostMemory
+    WinHostVirtualMemory::WinHostVirtualMemory(ByteSize size, ByteSize commitSize) :
+        m_size(AlignedSize(size.GetByteCount(), mem::kAllocationGranularity))
     {
-    public:
-        WindowsHostVirtualMemory(const WindowsHostVirtualMemory&) = delete;
-        WindowsHostVirtualMemory& operator=(const WindowsHostVirtualMemory&) = delete;
+        m_basePtr = reinterpret_cast<std::byte*>(::VirtualAlloc(nullptr, static_cast<SIZE_T>(m_size), MEM_RESERVE, PAGE_READWRITE));
+        MY_FATAL(m_basePtr);
 
-        WindowsHostVirtualMemory(size_t size) :
-            m_size(alignedSize(size, mem::AllocationGranularity))
+        if (commitSize > 0)
         {
-            m_basePtr = reinterpret_cast<std::byte*>(::VirtualAlloc(nullptr, static_cast<SIZE_T>(m_size), MEM_RESERVE, PAGE_READWRITE));
-            MY_FATAL(m_basePtr);
+            m_commitedSize = AlignedSize(commitSize.GetByteCount(), mem::kPageSize);
+            ::VirtualAlloc(m_basePtr, static_cast<SIZE_T>(m_commitedSize), MEM_COMMIT, PAGE_READWRITE);
+        }
+    }
+
+    WinHostVirtualMemory::~WinHostVirtualMemory()
+    {
+        ::VirtualFree(m_basePtr, 0, MEM_FREE);
+    }
+
+    bool WinHostVirtualMemory::OwnsRegion(const MemRegion& r) const
+    {
+        const std::byte* const ptr = reinterpret_cast<const std::byte*>(r.GetBasePtr());
+        return m_basePtr <= ptr && ((ptr + r.GetSize()) < (m_basePtr + m_size));
+    }
+
+    IHostMemory::MemRegion WinHostVirtualMemory::Alloc(ByteSize size, MemRegion* adjacentRegion)
+    {
+        const size_t regionByteSize = AlignedSize(size.GetByteCount(), mem::kPageSize);
+        size_t regionStart = m_allocOffset;
+
+        for (; !m_allocOffset.compare_exchange_strong(regionStart, m_allocOffset + regionByteSize, std::memory_order_relaxed);)
+        {
         }
 
-        ~WindowsHostVirtualMemory()
+        const size_t requiredCommitedSize = regionStart + regionByteSize;
+
+        if (m_commitedSize.load(std::memory_order_relaxed) < requiredCommitedSize)
         {
-            ::VirtualFree(m_basePtr, 0, MEM_FREE);
-        }
+            const std::lock_guard lock(m_mutex);
 
-    private:
-        MemRegion allocPages(size_t size) override
-        {
-            size = alignedSize(size, mem::PageSize);
-            size_t allocOffset = m_allocOffset;
+            const size_t currentCommitedSize = m_commitedSize.load(std::memory_order_relaxed);
 
-            for (; !m_allocOffset.compare_exchange_strong(allocOffset, m_allocOffset + size, std::memory_order_relaxed);)
+            if (currentCommitedSize < requiredCommitedSize)
             {
-            }
+                const size_t commitSize = requiredCommitedSize - currentCommitedSize;
+                MY_DBG_ASSERT(commitSize % mem::kPageSize == 0);
 
-            const size_t requiredCommitedSize = allocOffset + size;
-
-            if (m_commitedSize.load(std::memory_order_relaxed) < requiredCommitedSize)
-            {
-                const std::lock_guard lock(m_mutex);
-
-                const size_t currentCommitedSize = m_commitedSize.load(std::memory_order_relaxed);
-
-                if (currentCommitedSize < requiredCommitedSize)
+                const size_t newCommitedSize = currentCommitedSize + commitSize;
+                if (newCommitedSize > m_size)
                 {
-                    const size_t commitSize = requiredCommitedSize - currentCommitedSize;
-                    MY_DEBUG_ASSERT(commitSize % mem::PageSize == 0);
-
-                    const size_t newCommitedSize = currentCommitedSize + commitSize;
-                    if (newCommitedSize > m_size)
-                    {
-                        return MemRegion{};
-                    }
-
-                    ::VirtualAlloc(m_basePtr + currentCommitedSize, static_cast<SIZE_T>(commitSize), MEM_COMMIT, PAGE_READWRITE);
-                    m_commitedSize.store(newCommitedSize, std::memory_order_relaxed);
+                    return MemRegion{};
                 }
+
+                ::VirtualAlloc(m_basePtr + currentCommitedSize, static_cast<SIZE_T>(commitSize), MEM_COMMIT, PAGE_READWRITE);
+                m_commitedSize.store(newCommitedSize, std::memory_order_relaxed);
             }
-
-            return MemRegion{m_basePtr + allocOffset, size};
         }
 
-        void freePages(MemRegion&&) override
+        MemRegion allocatedRegion{m_basePtr + regionStart, regionByteSize};
+
+        if (adjacentRegion)
         {
-            MY_FAILURE("WindowsHostVirtualMemory::freePages not implemented");
+            MY_DBG_FATAL(OwnsRegion(*adjacentRegion));
+            MY_DBG_FATAL(MemRegion::IsAdjacent(*adjacentRegion, allocatedRegion), "Adjacent regions can only be allocated sequentially.");
+
+            MemRegion r {std::move(*adjacentRegion)};
+            r += std::move(allocatedRegion);
+            return r;
         }
 
-        Byte getPageSize() const override
-        {
-            return mem::PageSize;
-        }
+        return allocatedRegion;
+    }
 
-        Byte getAllocationGranularity() const override
-        {
-            return mem::PageSize;
-        }
-
-        const size_t m_size;
-        std::atomic<size_t> m_commitedSize = 0;
-        std::atomic<size_t> m_allocOffset = 0;
-        std::byte* m_basePtr;
-
-        std::mutex m_mutex;
-    };
-
-    HostMemoryPtr createHostVirtualMemory(Byte maxSize, [[maybe_unused]] bool threadSafe)
+    void WinHostVirtualMemory::Free([[maybe_unused]] MemRegion&& region)
     {
-        return std::make_shared<WindowsHostVirtualMemory>(maxSize);
+        MY_ASSERT(diag::kForceFail, "WindowsHostVirtualMemory does not support page deallocation.");
+    }
+
+    ByteSize WinHostVirtualMemory::GetPageSize() const
+    {
+        return mem::kPageSize;
+    }
+
+    ByteSize WinHostVirtualMemory::GetAllocationGranularity() const
+    {
+        return mem::kPageSize;
     }
 
 }  // namespace my
 
-#endif

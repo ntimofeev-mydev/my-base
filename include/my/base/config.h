@@ -15,3 +15,6 @@
 #else
     #define MY_BASE_EXPORT
 #endif
+
+
+#define MY_HAS_THREADS 1

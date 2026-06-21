@@ -57,11 +57,11 @@ namespace my
 
         /**
          */
-        virtual MemRegion AllocPages(size_t size, MemRegion* adjacentRegion = nullptr) = 0;
+        virtual MemRegion Alloc(ByteSize size, MemRegion* adjacentRegion = nullptr) = 0;
 
         /**
          */
-        virtual void FreePages(MemRegion&& pages) = 0;
+        virtual void Free(MemRegion&& pages) = 0;
 
         /**
          */
@@ -75,8 +75,8 @@ namespace my
 
     using HostMemoryPtr = Ptr<IHostMemory>;
 
-    MY_BASE_EXPORT HostMemoryPtr CreateHostVirtualMemory(ByteSize maxSize, bool threadSafe);
+    MY_BASE_EXPORT HostMemoryPtr CreateHostVirtualMemory(ByteSize maxSize, ByteSize commitSize, bool threadSafe);
 
-    MY_BASE_EXPORT HostMemoryPtr CreateCrtHostMemory(bool threadSafe = true);
+    MY_BASE_EXPORT HostMemoryPtr CreateDefaultHostMemory(bool threadSafe = true);
 
 }  // namespace my

@@ -3,6 +3,12 @@
 #include "my/memory/host_memory.h"
 #include "my/rtti/ref_counted_class.h"
 
+#ifdef _WIN32
+    #include "windows/win_host_virtual_memory.h"
+#else
+    #error implement OS specific
+#endif
+
 #include <cstdlib>
 
 namespace my
@@ -78,7 +84,7 @@ namespace my
 
         return false;
     }
-
+#if 0
     class HostCrtMemory final : public IHostMemory
     {
         MY_REFCOUNTED_CLASS(my::HostCrtMemory, IHostMemory);
@@ -98,11 +104,11 @@ namespace my
             MY_DBG_FATAL(!adjacentRegion, "Crt Host Memory does not support allocation for adjacent region");
 
             size = AlignedSize(size, mem::kPageSize);
-#ifdef _WIN32
+    #ifdef _WIN32
             void* const ptr = ::_aligned_malloc(size, kMinBlockAlignment);
-#else
+    #else
             void* const ptr = std::aligned_alloc(kGuaranteedBlockAlignment, size);
-#endif
+    #endif
             MY_DBG_FATAL(reinterpret_cast<uintptr_t>(ptr) % kMinBlockAlignment == 0);
 
             return MemRegion{ptr, size};
@@ -110,11 +116,11 @@ namespace my
 
         void FreePages(MemRegion&& pages) override
         {
-#ifdef _WIN32
+    #ifdef _WIN32
             ::_aligned_free(pages.GetBasePtr());
-#else
+    #else
             std::free(pages.GetBasePtr());
-#endif
+    #endif
         }
 
         ByteSize GetPageSize() const override
@@ -127,10 +133,17 @@ namespace my
             return mem::kPageSize;
         }
     };
+#endif
 
-    HostMemoryPtr CreateCrtHostMemory([[maybe_unused]] bool threadSafe)
+    // HostMemoryPtr CreateCrtHostMemory([[maybe_unused]] bool threadSafe)
+    // {
+    //     return rtti::CreateInstanceSingleton<HostCrtMemory>();
+    // }
+
+#ifdef _WIN32
+    HostMemoryPtr CreateHostVirtualMemory(ByteSize maxSize, ByteSize commitSize, [[maybe_unused]] bool threadSafe)
     {
-        return rtti::CreateInstanceSingleton<HostCrtMemory>();
+        return rtti::CreateInstance<WinHostVirtualMemory>(maxSize, commitSize);
     }
-
+#endif
 }  // namespace my
