@@ -24,35 +24,32 @@ namespace my
 
         [[nodiscard]] virtual void* Alloc(size_t size, size_t alignment = kDefaultAlignment) = 0;
 
-        [[nodiscard]] virtual void* Realloc(void* oldPtr, size_t size, size_t alignment = kUnspecifiedValue) = 0;
-
         virtual void Free(void* ptr, size_t size = kUnspecifiedValue, size_t alignment = kUnspecifiedValue) = 0;
 
         [[nodiscard]] virtual size_t GetMaxAlignment() const = 0;
 
         [[nodiscard]] virtual std::pmr::memory_resource* GetMemoryResource() = 0;
+    };
 
-        virtual void SetName(const char*)
-        {
-        }
+    struct MY_ABSTRACT_TYPE IReallocAllocator : IAllocator
+    {
+        MY_INTERFACE(my::IReallocAllocator, IAllocator);
 
-        virtual const char* GetName() const
-        {
-            return "";
-        }
+    public:
+        [[nodiscard]] virtual void* Realloc(void* oldPtr, size_t size, size_t alignment = kUnspecifiedValue) = 0;
     };
 
     using AllocatorPtr = Ptr<IAllocator>;
 
     MY_BASE_EXPORT AllocatorPtr CreateGenericAllocator(bool threadSafe = true);
 
-    MY_BASE_EXPORT IAllocator& GetDefaultAllocator();
+    MY_BASE_EXPORT IReallocAllocator& GetCrtAllocator();
 
     MY_BASE_EXPORT IAllocator& GetDefaultAlignedAllocator();
 
-    MY_FORCE_INLINE IAllocator* GetDefaultAllocatorPtr()
+    MY_FORCE_INLINE IAllocator* GetCrtAllocatorPtr()
     {
-        return &GetDefaultAllocator();
+        return &GetCrtAllocator();
     }
 
     MY_FORCE_INLINE IAllocator* GetDefaultAlignedAllocatorPtr()
@@ -106,10 +103,10 @@ namespace my::mem_detail
         AllocatorT& m_allocator;
     };
 
-    template <typename T>
-    class AllocatorWithMemResource : public IAllocator
+    template <typename AllocatorImpl, typename AllocatorInterface = IAllocator>
+    class AllocatorWithMemResource : public AllocatorInterface
     {
-        MY_INTERFACE(my::mem_detail::AllocatorWithMemResource<T>, IAllocator);
+        static_assert(std::is_base_of_v<IAllocator, AllocatorInterface>);
 
     public:
         std::pmr::memory_resource* GetMemoryResource() final
@@ -119,12 +116,12 @@ namespace my::mem_detail
 
     protected:
         AllocatorWithMemResource() :
-            m_memResource{static_cast<T&>(*this)}
+            m_memResource{static_cast<AllocatorImpl&>(*this)}
         {
         }
 
     private:
-        mutable AllocatorMemoryResource<T> m_memResource;
+        mutable AllocatorMemoryResource<AllocatorImpl> m_memResource;
     };
 
     constexpr inline bool IsValidAlignment(size_t align, size_t maxAlign)

@@ -50,18 +50,6 @@ namespace my
 #endif
     }
 
-    void* AlignedCrtAllocator::Realloc(void* oldPtr, size_t size, [[maybe_unused]] size_t alignment)
-    {
-        MY_DBG_FATAL(alignment != kUnspecifiedValue, "Alignment MUST BE explicitly specified");
-        MY_DBG_FATAL(alignment != 0 && IsPowerOf2(alignment));
-#ifdef _WIN32
-        auto const ptr = ::_aligned_realloc(oldPtr, size, alignment);
-        return ptr;
-#else
-        return ::realloc(oldPtr, size);
-#endif
-    }
-
     void AlignedCrtAllocator::Free(void* ptr, [[maybe_unused]] size_t size, [[maybe_unused]] size_t alignment)
     {
 #ifdef _WIN32

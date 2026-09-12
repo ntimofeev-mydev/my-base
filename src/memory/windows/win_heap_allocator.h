@@ -6,9 +6,9 @@
 
 namespace my
 {
-    class WinHeapAllocator final : public mem_detail::AllocatorWithMemResource<WinHeapAllocator>
+    class WinHeapAllocator final : public mem_detail::AllocatorWithMemResource<WinHeapAllocator, IReallocAllocator>
     {
-        MY_REFCOUNTED_CLASS(my::WinHeapAllocator, IAllocator);
+        MY_REFCOUNTED_CLASS(my::WinHeapAllocator, IReallocAllocator);
 
     public:
         WinHeapAllocator(bool threadSafe);

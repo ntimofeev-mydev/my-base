@@ -1,9 +1,9 @@
 // #my_engine_source_file
-#if !defined(__linux__)
-    #include "my/memory/block_allocator.h"
-    #include "my/threading/barrier.h"
 
-    #include <intrin.h>
+#include "my/memory/block_allocator.h"
+#include "my/threading/barrier.h"
+
+#include <intrin.h>
 
 namespace my::test
 {
@@ -82,4 +82,3 @@ namespace my::test
         }
     }
 }  // namespace my::test
-#endif

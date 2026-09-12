@@ -69,7 +69,7 @@ namespace my::rtti_detail
         IAllocator* GetAllocator() const;
 
     private:
-        void ReleaseStorageRef();
+        void ReleaseStateRef();
 
         void AddWeakRef() override;
 
@@ -209,7 +209,7 @@ namespace my::rtti
     template <typename Klass, typename Interface = Klass, typename... Args>
     Ptr<Interface> CreateInstance(Args&&... args)
     {
-        return CreateInstanceWithAllocator<Klass, Interface>(GetDefaultAllocatorPtr(), std::forward<Args>(args)...);
+        return CreateInstanceWithAllocator<Klass, Interface>(GetCrtAllocatorPtr(), std::forward<Args>(args)...);
     }
 
 }  // namespace my::rtti

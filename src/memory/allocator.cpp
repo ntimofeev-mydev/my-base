@@ -9,7 +9,7 @@
 
 namespace my
 {
-    IAllocator& GetDefaultAllocator()
+    IReallocAllocator& GetCrtAllocator()
     {
         static Ptr<CrtAllocator> allocator = rtti::CreateInstanceSingleton<CrtAllocator>();
         return *allocator;

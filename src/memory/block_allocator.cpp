@@ -4,8 +4,6 @@
 #include "my/memory/block_allocator.h"
 #include "my/rtti/ref_counted_class.h"
 
-#include <iostream>
-
 /**
 THREAD_YIELD
 #if defined(_MSC_VER)
@@ -21,13 +19,14 @@ namespace my
 {
     namespace
     {
-        constexpr size_t kPreAllocateBlockCount = 20;
-        static inline constexpr size_t kBlockAlignment = 16;
-
         struct Block
         {
             Block* next;
         };
+
+        constexpr size_t kPreAllocateBlockCount = 20;
+        constexpr size_t kBlockAlignment = 16;
+
     }  // namespace
 
     /**
@@ -47,20 +46,16 @@ namespace my
 
         void* Alloc([[maybe_unused]] size_t size, [[maybe_unused]] size_t align) override
         {
+
             MY_DBG_FATAL(size <= m_blockSize, "Request to alloc({}) bytes, but block size = ({}) bytes", size, m_blockSize);
             MY_DBG_FATAL(IsValidAlignment(align, kBlockAlignment), "Invalid alignment ({})", align);
 
-            Block* block = m_freeBlock.load(std::memory_order_relaxed);
-            while (block && !m_freeBlock.compare_exchange_weak(block, block->next, std::memory_order_acquire, std::memory_order_relaxed))
-            {
-            }
-
-            if (block)
-            {
-                return block;
-            }
-
             const std::lock_guard lock{m_allocMutex};
+            if (m_freeBlock)
+            {
+                return std::exchange(m_freeBlock, m_freeBlock->next);
+            }
+
             MY_DBG_FATAL(!m_pages.empty());
 
             IHostMemory::MemRegion* pages = &m_pages.back();
@@ -68,7 +63,7 @@ namespace my
             if (m_allocOffset + m_blockSize > pages->GetSize())
             {
                 IHostMemory::MemRegion& newPages = m_pages.emplace_back(m_memory->Alloc(m_blockSize * kPreAllocateBlockCount));
-                MY_DBG_FATAL(newPages, "Fail to allocate more pages");
+                MY_ASSERT(newPages, "Fail to allocate more pages");
                 if (!newPages)
                 {
                     return nullptr;
@@ -78,44 +73,30 @@ namespace my
                 m_allocOffset = 0;
             }
 
-            MY_DBG_FATAL(pages);
+            MY_FATAL(pages);
             MY_DBG_FATAL(m_allocOffset + m_blockSize <= pages->GetSize());
 
-            const size_t allocOffset = std::exchange(m_allocOffset, m_allocOffset + m_blockSize);
+            const size_t alloc_offset = std::exchange(m_allocOffset, m_allocOffset + m_blockSize);
 
-            std::byte* const ptr = reinterpret_cast<std::byte*>(pages->GetBasePtr()) + allocOffset;
-
-            MY_DBG_ASSERT(reinterpret_cast<uintptr_t>(ptr) % kBlockAlignment == 0);
+            std::byte* const ptr = reinterpret_cast<std::byte*>(pages->GetBasePtr()) + alloc_offset;
+            MY_DBG_FATAL(reinterpret_cast<uintptr_t>(ptr) % kBlockAlignment == 0);
 
             return ptr;
-        }
-
-        void* Realloc(void* ptr, size_t size, size_t align) override
-        {
-            if (ptr)
-            {
-                MY_DBG_FATAL(size <= m_blockSize, "Request to alloc({}) bytes, but block size = ({}) bytes", size, m_blockSize);
-                MY_DBG_FATAL(IsValidAlignment(align, kBlockAlignment), "Invalid alignment ({})", align);
-                // TODO: debug check owns ptr;
-
-                return ptr;
-            }
-
-            return Alloc(size, align);
         }
 
         void Free(void* ptr, [[maybe_unused]] size_t size, [[maybe_unused]] size_t align) override
         {
             MY_DBG_FATAL(size == IAllocator::kUnspecifiedValue || size <= m_blockSize);
-
-            if (ptr)
+            if (!ptr)
             {
-                Block* block = reinterpret_cast<Block*>(ptr);
-                block->next = m_freeBlock.load(std::memory_order_relaxed);
-                while (!m_freeBlock.compare_exchange_weak(block->next, block, std::memory_order_release, std::memory_order_relaxed))
-                {
-                }
+                return;
             }
+
+            const std::lock_guard lock {m_allocMutex};
+            Block* block = reinterpret_cast<Block*>(ptr);
+            block->next = m_freeBlock;
+            m_freeBlock = block;
+
         }
 
         size_t GetMaxAlignment() const override
@@ -128,7 +109,7 @@ namespace my
         const size_t m_blockSize;
         std::vector<IHostMemory::MemRegion> m_pages;
         size_t m_allocOffset = 0;
-        std::atomic<Block*> m_freeBlock{nullptr};
+        Block* m_freeBlock = nullptr;
         std::mutex m_allocMutex;
     };
 

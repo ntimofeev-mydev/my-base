@@ -46,6 +46,10 @@ target_link_libraries(${TargetName} PUBLIC
   fmt
 )
 
+target_link_libraries(${TargetName} PRIVATE
+  concurrentqueue
+)
+
 set_target_properties (${TargetName} PROPERTIES FOLDER ${MY_ENGINE_FOLDER})
 
 source_group(TREE ${ModuleRoot}/src PREFIX Sources FILES ${Sources})

@@ -29,7 +29,6 @@ namespace my
         std::atomic<size_t> m_commitedSize = 0;
         std::atomic<size_t> m_allocOffset = 0;
         std::byte* m_basePtr;
-
         std::mutex m_mutex;
     };
 

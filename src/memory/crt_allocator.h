@@ -9,9 +9,9 @@ namespace my
 
     /**
      */
-    class CrtAllocator final : public mem_detail::AllocatorWithMemResource<CrtAllocator>
+    class CrtAllocator final : public mem_detail::AllocatorWithMemResource<CrtAllocator, IReallocAllocator>
     {
-        MY_REFCOUNTED_CLASS(my::CrtAllocator, IAllocator);
+        MY_REFCOUNTED_CLASS(my::CrtAllocator, IReallocAllocator);
 
     public:
         void* Alloc(size_t size, size_t alignment) override;
@@ -28,7 +28,6 @@ namespace my
 
     public:
         void* Alloc(size_t size, size_t alignment) override;
-        void* Realloc(void* oldPtr, size_t size, size_t alignment) override;
         void Free(void* ptr, size_t size, size_t alignment) override;
         size_t GetMaxAlignment() const override;
     };

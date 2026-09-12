@@ -7,13 +7,13 @@ namespace my::rtti_detail
     {
         MY_FORCE_INLINE void Increment(std::atomic<uint32_t>& counter)
         {
-            [[maybe_unused]] const auto value = counter.fetch_add(1, std::memory_order_release);
+            [[maybe_unused]] const auto value = counter.fetch_add(1, std::memory_order_relaxed);
             MY_DBG_ASSERT(value > 0);
         }
 
         MY_FORCE_INLINE uint32_t Decrement(std::atomic<uint32_t>& counter)
         {
-            const auto value = counter.fetch_sub(1, std::memory_order_release);
+            const auto value = counter.fetch_sub(1, std::memory_order_acq_rel);
             MY_DBG_ASSERT(value > 0);
             return value;
         }
@@ -27,7 +27,8 @@ namespace my::rtti_detail
                 {
                     return false;
                 }
-            } while (!counter.compare_exchange_weak(value, counter + 1));
+            }
+            while (!counter.compare_exchange_weak(value, value + 1, std::memory_order_relaxed, std::memory_order_relaxed));
 
             return true;
         }
@@ -46,22 +47,23 @@ namespace my::rtti_detail
         MY_DBG_FATAL(m_instanceCounter.load(std::memory_order_relaxed) == 1);
     }
 
-
     void RttiClassSharedState::AddInstanceRef()
     {
         Increment(m_instanceCounter);
-        Increment(m_stateCounter);
     }
 
     void RttiClassSharedState::ReleaseInstanceRef()
     {
         if (Decrement(m_instanceCounter) == 1)
         {
+            MY_DBG_FATAL(m_instanceCounter.load(std::memory_order_relaxed) == 0);
+
             void* const instancePtr = RttiClassStorage::GetInstancePtr(*this);
             m_destructorFunc(instancePtr);
-        }
 
-        ReleaseStorageRef();
+            // release state
+            ReleaseStateRef();
+        }
     }
 
     uint32_t RttiClassSharedState::GetInstanceRefsCount() const
@@ -80,7 +82,7 @@ namespace my::rtti_detail
         return m_allocator;
     }
 
-    void RttiClassSharedState::ReleaseStorageRef()
+    void RttiClassSharedState::ReleaseStateRef()
     {
         if (Decrement(m_stateCounter) == 1)
         {
@@ -105,14 +107,13 @@ namespace my::rtti_detail
 
     void RttiClassSharedState::ReleaseWeak()
     {
-        ReleaseStorageRef();
+        ReleaseStateRef();
     }
 
     IRefCounted* RttiClassSharedState::Lock()
     {
         if (TryIncrement(m_instanceCounter))
         {
-            Increment(m_stateCounter);
             void* const instancePtr = RttiClassStorage::GetInstancePtr(*this);
             IRefCounted* const instance = m_lockFunc(instancePtr);
             return instance;
@@ -123,7 +124,7 @@ namespace my::rtti_detail
 
     bool RttiClassSharedState::IsDead() const
     {
-        MY_DBG_FATAL(m_stateCounter.load() > 0);
+        MY_DBG_FATAL(m_stateCounter.load(std::memory_order_relaxed) > 0);
         return m_instanceCounter.load(std::memory_order_relaxed) == 0;
     }
 

@@ -20,7 +20,16 @@ namespace my
 
     constexpr inline size_t AlignedSize(size_t size, size_t alignment)
     {
-        MY_DBG_ASSERT(IsPowerOf2(alignment), "alignment expected to be a power of two. Actual value: ({})", alignment);
+        if consteval
+        {
+            //static_assert(IsPowerOf2(alignment));
+            //
+        }
+        else
+        {
+            MY_DBG_ASSERT(IsPowerOf2(alignment), "alignment expected to be a power of two. Actual value: ({})", alignment);
+        }
+        //
         return (size + alignment - 1) & ~(alignment - 1);
     }
 
